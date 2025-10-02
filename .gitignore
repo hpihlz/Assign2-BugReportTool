@@ -10,3 +10,6 @@ Thumbs.db
 *.log
 *.tmp
 temp/
+
+# Local database and uploads
+html/data/
