@@ -73,21 +73,33 @@ jobs:
       - name: Ensure Container App exists (create if missing)
         run: |
           if ! az containerapp show -n "$CONTAINER_APP_NAME" -g "$RESOURCE_GROUP" >/dev/null 2>&1; then
-            echo "Container App not found. Creating..."
+            echo "Creating Container App..."
             az containerapp create \
               -n "$CONTAINER_APP_NAME" \
               -g "$RESOURCE_GROUP" \
               --environment "$CONTAINERAPPS_ENV" \
               --image mcr.microsoft.com/azuredocs/containerapps-helloworld:latest \
               --ingress external \
-              --target-port 80 \
-              --assign-identity system
-          else
-            # make sure identity is present
-            az containerapp update \
+              --target-port 80
+            # Enable system-assigned identity (new syntax)
+            az containerapp identity assign \
               -n "$CONTAINER_APP_NAME" \
               -g "$RESOURCE_GROUP" \
-              --assign-identity system >/dev/null
+              --system-assigned
+            # Grant AcrPull to the app's MI (only needed on first create)
+            MI_PRINCIPAL_ID=$(az containerapp show -g "$RESOURCE_GROUP" -n "$CONTAINER_APP_NAME" --query identity.principalId -o tsv)
+            ACR_ID=$(az acr show -n "$ACR_NAME" -g "$RESOURCE_GROUP" --query id -o tsv)
+            az role assignment create \
+              --assignee-object-id "$MI_PRINCIPAL_ID" \
+              --assignee-principal-type ServicePrincipal \
+              --role AcrPull \
+              --scope "$ACR_ID" >/dev/null || true
+          else
+            # Make sure identity is present
+            az containerapp identity assign \
+              -n "$CONTAINER_APP_NAME" \
+              -g "$RESOURCE_GROUP" \
+              --system-assigned >/dev/null
           fi
 
       - name: Bind ACR to Container App (idempotent)
