@@ -30,17 +30,20 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Ensure containerapp extension
+        run: az extension add --name containerapp --upgrade -y
+
       - name: Get ACR login server
         id: acr
         run: |
           ACR_LOGIN_SERVER=$(az acr show -n "$ACR_NAME" -g "$RESOURCE_GROUP" --query loginServer -o tsv)
           echo "login_server=$ACR_LOGIN_SERVER" >> $GITHUB_OUTPUT
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: ACR Login (via OIDC RBAC)
         run: az acr login -n "$ACR_NAME"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Build & Push image (single push, two tags, no attestations)
         env:
@@ -67,8 +70,25 @@ jobs:
           done
           echo "FULL_IMAGE=$FULL_IMAGE" >> $GITHUB_ENV
 
-      - name: Ensure containerapp extension
-        run: az extension add --name containerapp --upgrade -y
+      - name: Ensure Container App exists (create if missing)
+        run: |
+          if ! az containerapp show -n "$CONTAINER_APP_NAME" -g "$RESOURCE_GROUP" >/dev/null 2>&1; then
+            echo "Container App not found. Creating..."
+            az containerapp create \
+              -n "$CONTAINER_APP_NAME" \
+              -g "$RESOURCE_GROUP" \
+              --environment "$CONTAINERAPPS_ENV" \
+              --image mcr.microsoft.com/azuredocs/containerapps-helloworld:latest \
+              --ingress external \
+              --target-port 80 \
+              --assign-identity system
+          else
+            # make sure identity is present
+            az containerapp update \
+              -n "$CONTAINER_APP_NAME" \
+              -g "$RESOURCE_GROUP" \
+              --assign-identity system >/dev/null
+          fi
 
       - name: Bind ACR to Container App (idempotent)
         run: |
@@ -78,7 +98,7 @@ jobs:
             --server "${{ steps.acr.outputs.login_server }}" \
             --identity system
 
-      - name: Deploy to Azure Container Apps
+      - name: Deploy image to Azure Container Apps
         run: |
           az containerapp update \
             -n "$CONTAINER_APP_NAME" \
