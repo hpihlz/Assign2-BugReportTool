@@ -11,12 +11,13 @@
 </head>
 <body>
     <div class="container">
+        <img class="corner-icon" src="assets/img/bug-icon.png" alt="Bug Report Tool icon">
         <h1>Welcome to the Bug Report Tool</h1>
-        <p>This is a simple website (alpha state) that will be served by nginx on Azure.</p>
+        <p>This is a simple Bug and Error Reporting online tool that will be hosted on Azure.</p>
         <div class="info">
             <h2>Version Information</h2>
-            <p>Version: 1.0.1</p>
-            <p>Environment: Development</p>
+            <p>Version: 1.1.0</p>
+            <p>Environment: Microsoft Azure/Development</p>
             <p>Last Updated: <span id="date"></span></p>
         </div>
         <div class="actions">

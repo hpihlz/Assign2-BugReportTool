@@ -12,6 +12,7 @@ body {
     border-radius: 10px;
     padding: 30px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    position: relative;
 }
 
 h1 {
@@ -175,4 +176,13 @@ textarea {
 .report-card figure {
     margin: 0;
     text-align: center;
+}
+
+.corner-icon {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 60px;
+    height: auto;
+    pointer-events: none;
 }
