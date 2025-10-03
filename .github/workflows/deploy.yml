@@ -1,0 +1,91 @@
+name: Build & Deploy to Azure Container Apps (OIDC)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  RESOURCE_GROUP: Assign2-BugReportTool-RG
+  ACR_NAME: assign2bugreportregistry
+  IMAGE_NAME: bugreporttool
+  CONTAINER_APP_NAME: bugreporttool-app
+  CONTAINERAPPS_ENV: bugreporttool-env
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get ACR login server
+        id: acr
+        run: |
+          ACR_LOGIN_SERVER=$(az acr show -n "$ACR_NAME" -g "$RESOURCE_GROUP" --query loginServer -o tsv)
+          echo "login_server=$ACR_LOGIN_SERVER" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Azure ACR Login
+        run: |
+          az acr login -n "$ACR_NAME"
+
+      - name: Build & Push image
+        run: |
+          IMAGE_TAG=${GITHUB_SHA::12}
+          FULL_IMAGE="${{ steps.acr.outputs.login_server }}/${IMAGE_NAME}:${IMAGE_TAG}"
+          echo "Building $FULL_IMAGE"
+          docker buildx build \
+            --platform linux/amd64 \
+            -t "$FULL_IMAGE" \
+            --push \
+            .
+
+          # Also tag "latest" (optional)
+          LATEST_IMAGE="${{ steps.acr.outputs.login_server }}/${IMAGE_NAME}:latest"
+          docker buildx build \
+            --platform linux/amd64 \
+            -t "$LATEST_IMAGE" \
+            --push \
+            .
+
+          echo "FULL_IMAGE=$FULL_IMAGE" >> $GITHUB_ENV
+
+      - name: Deploy to Azure Container Apps
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            set -e
+            if ! az containerapp show -n "$CONTAINER_APP_NAME" -g "$RESOURCE_GROUP" >/dev/null 2>&1; then
+              echo "Creating Container App..."
+              az containerapp create \
+                -n "$CONTAINER_APP_NAME" \
+                -g "$RESOURCE_GROUP" \
+                --environment "$CONTAINERAPPS_ENV" \
+                --image "$FULL_IMAGE" \
+                --ingress external \
+                --target-port 80 \
+                --registry-server "${{ steps.acr.outputs.login_server }}"
+            else
+              echo "Updating Container App..."
+              az containerapp update \
+                -n "$CONTAINER_APP_NAME" \
+                -g "$RESOURCE_GROUP" \
+                --image "$FULL_IMAGE" \
+                --registry-server "${{ steps.acr.outputs.login_server }}"
+            fi
+
+            echo "Deployed image: $FULL_IMAGE"
