@@ -47,16 +47,12 @@ jobs:
           ACR_LOGIN_SERVER: ${{ steps.acr.outputs.login_server }}
         run: |
           set -e
-
           IMAGE_TAG=${GITHUB_SHA::12}
           FULL_IMAGE="${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${IMAGE_TAG}"
           LATEST_IMAGE="${ACR_LOGIN_SERVER}/${IMAGE_NAME}:latest"
-
           echo "Building and pushing:"
           echo " - $FULL_IMAGE"
           echo " - $LATEST_IMAGE"
-
-          # Retry loop to smooth over transient registry hiccups
           for attempt in 1 2 3; do
             echo "Attempt $attempt ..."
             docker buildx build \
@@ -69,17 +65,23 @@ jobs:
               . && break
             sleep 5
           done
-
           echo "FULL_IMAGE=$FULL_IMAGE" >> $GITHUB_ENV
 
+      - name: Ensure containerapp extension
+        run: az extension add --name containerapp --upgrade -y
+
+      - name: Bind ACR to Container App (idempotent)
+        run: |
+          az containerapp registry set \
+            -g "$RESOURCE_GROUP" \
+            -n "$CONTAINER_APP_NAME" \
+            --server "${{ steps.acr.outputs.login_server }}" \
+            --identity system
+
       - name: Deploy to Azure Container Apps
-        uses: azure/cli@v2
-        with:
-          inlineScript: |
-            set -e
-            az containerapp update \
-              -n "$CONTAINER_APP_NAME" \
-              -g "$RESOURCE_GROUP" \
-              --image "$FULL_IMAGE" \
-              --registry-server "${{ steps.acr.outputs.login_server }}"
-            echo "Deployed image: $FULL_IMAGE"
+        run: |
+          az containerapp update \
+            -n "$CONTAINER_APP_NAME" \
+            -g "$RESOURCE_GROUP" \
+            --image "$FULL_IMAGE"
+          echo "Deployed image: $FULL_IMAGE"
