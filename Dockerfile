@@ -1,21 +1,19 @@
-# PHP-FPM container for the bug report application
-FROM php:8.2-fpm-alpine
+# Apache + PHP 8.2 (serves HTTP on port 80)
+FROM php:8.2-apache
 
-# Install required extensions
-RUN apk add --no-cache sqlite-dev \
-    && docker-php-ext-install pdo_sqlite
+# Enable needed PHP extensions
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libsqlite3-dev \
+    && docker-php-ext-install pdo_sqlite \
+    && rm -rf /var/lib/apt/lists/*
 
-# Configure working directory
+# Configure Apache to serve /var/www/html
 WORKDIR /var/www/html
-
-# Copy application code into the image
 COPY html/ /var/www/html/
 
-# Ensure runtime directories exist and have correct ownership
+# Make sure writable dir exists (adjust as needed for your app)
 RUN mkdir -p /var/www/html/data \
     && chown -R www-data:www-data /var/www/html
 
-# Expose PHP-FPM port (for documentation purposes)
-EXPOSE 9000
-
-CMD ["php-fpm"]
+# Apache in this image already listens on 80
+EXPOSE 80
