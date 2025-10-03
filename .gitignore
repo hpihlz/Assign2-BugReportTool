@@ -5,6 +5,7 @@ Thumbs.db
 # Editor directories
 .vscode/
 .idea/
+.github/
 
 # Logs and temp files
 *.log
@@ -13,3 +14,4 @@ temp/
 
 # Local database and uploads
 html/data/
+scripts/
