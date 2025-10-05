@@ -3,7 +3,7 @@ version: "3.9"
 services:
   php:
     build: .
-    container_name: bugtool-php
+    image: bugtool-php:latest
     volumes:
       - ./html:/var/www/html:rw
       - bug_reports_data:/var/www/html/data
@@ -12,7 +12,6 @@ services:
 
   nginx:
     image: nginx:1.25-alpine
-    container_name: bugtool-nginx
     ports:
       - "8080:80"
     volumes:
@@ -23,7 +22,6 @@ services:
 
   sqlite:
     image: alpine:3.20
-    container_name: bugtool-sqlite
     command: ["sh", "-c", "mkdir -p /data && chown -R 82:82 /data && exec tail -f /dev/null"]
     volumes:
       - bug_reports_data:/data
